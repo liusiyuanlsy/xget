@@ -103,6 +103,10 @@
 `/.well-known/xget.json` 實例探索請見 [CLI 指南](packages/cli/README.md)和
 [智慧體契約](docs/agent-contract.md)。Xget Skill 附帶相同 CLI，可在任意專案目錄離線使用。
 
+**原生 CLI 適配器：**`xget exec --adapter git|npm|pip -- COMMAND ...` 會以暫時設定
+執行原生命令；`xget doctor --adapter git|npm|pip` 檢查本機工具，只有明確加上
+`--probe` 才檢查實例清單。這些命令不會寫入持久設定。詳見 [CLI 指南](packages/cli/README.md)。
+
 ## 為什麼選擇 Xget
 
 ### 面向效能的設計

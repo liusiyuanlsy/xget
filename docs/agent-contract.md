@@ -8,14 +8,14 @@ CLI, so installation does not require downloading executable code at task time.
 
 ## Versions and compatibility
 
-The first release uses:
+The current release uses:
 
 | Field            | Current value | Meaning                                              |
 | ---------------- | ------------- | ---------------------------------------------------- |
 | `schemaVersion`  | `1`           | Shape and semantics of the machine contract.         |
 | `catalogVersion` | `1.0.0`       | Version of platform and URL conversion rules.        |
-| `releaseVersion` | `0.1.0`       | Xget contract release included in the Worker.        |
-| `cliVersion`     | `0.1.0`       | CLI distribution version, aligned with this release. |
+| `releaseVersion` | `0.2.0`       | Xget contract release included in the Worker.        |
+| `cliVersion`     | `0.2.0`       | CLI distribution version, aligned with this release. |
 
 Within schema 1, consumers must tolerate additional fields and unknown platform
 entries, and select fields by name rather than position. Removing or changing
@@ -25,7 +25,7 @@ removing a platform or changing established routing/conversion semantics
 requires a catalog major release. Update versions explicitly when changing that
 contract.
 
-CLI 0.1.x understands schema 1. The bundled catalog describes the CLI build, not
+CLI 0.2.x understands schema 1. The bundled catalog describes the CLI build, not
 the current state of the internet or a deployed instance. Matching schema
 versions establish parse compatibility; matching catalog versions establish the
 same published rule set. Neither implies upstream availability or successful
@@ -47,9 +47,8 @@ or arbitrary SDK behavior has been validated. Deployment gateways may require
 authentication before allowing discovery.
 
 CLI `capabilities` returns its **bundled** manifest and does not call this
-endpoint. This release has no instance-query or diagnostic command. Consumers
-can read instance discovery separately when the task calls for it; do not follow
-a redirect to the project homepage and treat the resulting HTML as a manifest.
+endpoint. `doctor --probe` is the explicit instance-query path; it rejects
+redirected HTML and reports schema mismatch separately from local tool failure.
 
 ## Offline conversion
 
@@ -65,6 +64,16 @@ instance enables a route, credentials work, or the resource exists.
 
 CLI JSON envelopes, exit codes, command aliases, and examples are described in
 [the CLI guide](../packages/cli/README.md).
+
+## Native adapters
+
+`exec --adapter git|npm|pip -- COMMAND...` runs a native command with temporary
+settings. Git receives command-level `url.*.insteadOf` rules for the code hosts
+in the manifest; npm receives `npm_config_registry=<base>/npm/`; pip receives
+`PIP_INDEX_URL=<base>/pypi/simple`. The CLI never edits persistent files and
+spawns without a shell. `doctor` checks the corresponding executable and adapter
+settings locally; `doctor --probe` additionally requests the instance manifest.
+The child command's output and exit status remain observable in the JSON result.
 
 ## Updating and distributing the Skill
 

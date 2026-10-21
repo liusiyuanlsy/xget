@@ -121,6 +121,11 @@ See the [CLI guide](packages/cli/README.md) and
 `/.well-known/xget.json` instance discovery. The Xget Skill bundles the same CLI
 for offline use from any project directory.
 
+**Native CLI adapters:** `xget exec --adapter git|npm|pip -- COMMAND ...` runs a
+native command with temporary Xget settings. `xget doctor --adapter git|npm|pip`
+checks the local tool, and `--probe` explicitly checks the instance manifest.
+These commands do not write persistent configuration. See the [CLI guide](packages/cli/README.md).
+
 ## Why Xget
 
 ### Performance-Oriented Design

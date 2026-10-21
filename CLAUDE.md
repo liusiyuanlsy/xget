@@ -368,6 +368,8 @@ Configure in Cloudflare Workers dashboard or via `wrangler.toml`:
 - CLI source lives in `packages/cli/`; never edit its generated `shared/` files
 - Run `npm run test:cli` in addition to the normal checks for contract/CLI changes
 - Use `npm run pack:cli` to build a standalone npm tarball without publishing it
+- `xget exec` supports Git, npm, and pip with process-scoped settings only
+- `xget doctor` checks the local executable; `--probe` explicitly checks instance discovery
 - Regenerate the distributed Skill with
   `node scripts/sync-xget-skill.mjs --skill-dir /path/to/skills/skills/xget`
 - Validate Skill instructions and Markdown in the Skills repository after syncing

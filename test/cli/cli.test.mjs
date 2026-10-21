@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -81,7 +89,7 @@ function envelope(result, status = 0) {
   assert.equal(result.stderr, '', 'JSON mode must not mix diagnostics into stderr');
   const output = JSON.parse(result.stdout);
   assert.equal(output.schemaVersion, 1);
-  assert.equal(output.cliVersion, '0.1.0');
+  assert.equal(output.cliVersion, '0.2.0');
   assert.equal(output.catalogVersion, '1.0.0');
   assert.equal(output.ok, status === 0);
   return output;
@@ -386,7 +394,7 @@ test('npm tarball installs and executes independently of the source checkout', (
   assert.equal(install.status, 0, install.stderr);
   const packageRoot = path.join(installed, 'node_modules/@xixu-me/xget-cli');
   const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
-  assert.equal(manifest.version, '0.1.0');
+  assert.equal(manifest.version, '0.2.0');
   const installedEntry = path.join(packageRoot, manifest.bin.xget);
   const output = envelope(
     run(['resolve', 'https://github.com/org/repo', '--base-url', 'https://isolated.example'], {
@@ -416,7 +424,7 @@ test('generated Skill runs the same offline contract from any project directory'
   assert.equal(packageJson.scripts, undefined, 'Skill must not depend on repository build scripts');
   assert.equal(existsSync(path.join(snapshot, 'LICENSE')), true);
   const provenance = JSON.parse(readFileSync(path.join(snapshot, 'provenance.json'), 'utf8'));
-  assert.equal(provenance.cliVersion, '0.1.0');
+  assert.equal(provenance.cliVersion, '0.2.0');
   assert.equal(provenance.schemaVersion, 1);
   assert.deepEqual(
     envelope(run(['capabilities'], { entry: wrapper })),
@@ -444,4 +452,139 @@ test('Skill sync refuses a different skill without overwriting its scripts', () 
   );
   assert.notEqual(synced.status, 0);
   assert.equal(readFileSync(sentinel, 'utf8'), 'preserve this file');
+});
+
+/**
+ * Creates a portable fake executable for child-process tests.
+ * @param {string} name
+ * @returns {string} Fake executable path.
+ */
+function createFakeTool(name) {
+  const tool = path.join(fixture, name);
+  writeFileSync(
+    tool,
+    `#!/usr/bin/env node
+const fs = await import('node:fs');
+const payload = { argv: process.argv.slice(2), env: { npm_config_registry: process.env.npm_config_registry, PIP_INDEX_URL: process.env.PIP_INDEX_URL } };
+process.stdout.write(JSON.stringify(payload));
+process.exit(Number(process.env.XGET_FAKE_EXIT || 0));
+`
+  );
+  chmodSync(tool, 0o755);
+  return tool;
+}
+
+test('exec runs Git through command-level URL rewrites without a shell', () => {
+  createFakeTool('git');
+  const result = run(
+    [
+      'exec',
+      '--adapter',
+      'git',
+      '--base-url',
+      'https://xget.example',
+      '--',
+      'git',
+      'clone',
+      'https://github.com/org/repo',
+      '$(touch-shell-sentinel)'
+    ],
+    { env: { PATH: `${fixture}:${process.env.PATH}` } }
+  );
+  const { data } = envelope(result);
+  assert.equal(data.exitCode, 0);
+  assert.equal(data.command[0], 'git');
+  assert.ok(data.command.includes('-c'));
+  assert.match(data.command.join(' '), /url\.https:\/\/xget\.example\/gh\//);
+  const child = JSON.parse(data.stdout);
+  assert.deepEqual(child.argv.slice(-3), [
+    'clone',
+    'https://github.com/org/repo',
+    '$(touch-shell-sentinel)'
+  ]);
+  assert.equal(existsSync(path.join(fixture, 'touch-shell-sentinel')), false);
+});
+
+test('exec injects npm and pip settings only into the child process', () => {
+  createFakeTool('npm');
+  const npmResult = envelope(
+    run(['exec', '--adapter', 'npm', '--base-url', 'https://xget.example', '--', 'npm', 'ci'], {
+      env: { PATH: `${fixture}:${process.env.PATH}` }
+    })
+  );
+  assert.equal(
+    JSON.parse(npmResult.data.stdout).env.npm_config_registry,
+    'https://xget.example/npm/'
+  );
+  assert.equal(process.env.npm_config_registry, undefined);
+
+  createFakeTool('python');
+  const pipResult = envelope(
+    run(
+      [
+        'exec',
+        '--adapter',
+        'pip',
+        '--base-url',
+        'https://xget.example',
+        '--',
+        'python',
+        '-m',
+        'pip',
+        'install',
+        'requests'
+      ],
+      { env: { PATH: `${fixture}:${process.env.PATH}` } }
+    )
+  );
+  assert.equal(
+    JSON.parse(pipResult.data.stdout).env.PIP_INDEX_URL,
+    'https://xget.example/pypi/simple'
+  );
+});
+
+test('exec exposes child failures with a structured error and exit code', () => {
+  createFakeTool('npm');
+  const result = run(
+    ['exec', '--adapter', 'npm', '--base-url', 'https://xget.example', '--', 'npm', '--version'],
+    { env: { PATH: `${fixture}:${process.env.PATH}`, XGET_FAKE_EXIT: '7' } }
+  );
+  const output = envelope(result, 7);
+  assert.equal(output.error.code, 'CHILD_PROCESS_FAILED');
+  assert.equal(output.data.exitCode, 7);
+});
+
+test('doctor reports local adapter configuration without probing by default', () => {
+  createFakeTool('git');
+  const { data } = envelope(
+    run(['doctor', '--adapter', 'git', '--base-url', 'https://xget.example'])
+  );
+  assert.equal(data.adapter, 'git');
+  assert.equal(data.tool.available, true);
+  assert.equal(data.network.checked, false);
+  assert.equal(data.config[0].key.startsWith('url.https://xget.example/'), true);
+});
+
+test('exec and doctor validate adapter names and instance roots before running tools', () => {
+  failure(
+    ['exec', '--adapter', 'cargo', '--base-url', 'https://xget.example', '--', 'cargo', 'fetch'],
+    'UNSUPPORTED_ADAPTER'
+  );
+  failure(
+    ['doctor', '--adapter', 'npm', '--base-url', 'https://xget.example/prefix'],
+    'INVALID_BASE_URL'
+  );
+  failure(
+    [
+      'exec',
+      '--adapter',
+      'npm',
+      '--base-url',
+      'https://xget.example',
+      '--',
+      'command-not-found-xget'
+    ],
+    'COMMAND_NOT_FOUND',
+    3
+  );
 });

@@ -170,3 +170,12 @@ export function resolveUrl(inputUrl, baseUrl) {
     ...(normalization ? { normalization } : {})
   };
 }
+
+/**
+ * Validates and normalizes an instance root for adapters and diagnostics.
+ * @param {string} baseUrl
+ * @returns {string} Origin-only instance URL.
+ */
+export function validateBaseUrl(baseUrl) {
+  return parseHttpUrl(baseUrl, true).origin;
+}

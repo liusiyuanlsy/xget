@@ -1,6 +1,6 @@
 {
   "name": "@xixu-me/xget-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Offline, machine-readable URL conversion for Xget",
   "type": "module",
   "license": "AGPL-3.0-or-later",
